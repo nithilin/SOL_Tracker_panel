@@ -1,0 +1,183 @@
+
+#include <Servo.h> // include Servo library 
+#include <LiquidCrystal_I2C.h>
+
+
+//SERVA
+Servo horizontal;    // horizontalne servo
+int servoh = 90;     // zakladne poloha po spusteni horizontalne servo
+Servo vertical;      // vertikalne servo 
+int servov = 90;     // zakladna poloho po spusteni vertikalne servo
+
+//Voltmeter 
+const int voltageSensor = A4; //meria napetie 
+float vOUT = 0.0;
+float vIN = 0.0;
+float R1 = 30000.0;
+float R2 = 7500.0;
+int value = 0;
+
+//premenne pre tlacitko mod stav tlacitka a uchovanie stavu stlacitka  
+int mode = 0;             
+int buttonState = 0;      
+int prevButtonState = 0;  
+
+// LDR pripojenie
+int ldrlt = A8;  //hore pravo zlty 
+int ldrrt = A9;  //hore lavo modry
+int ldrld = A10; //dole pravo biely-z fotorezistovu vedie cierny kabel prepojeny na bieli k PCB 
+int ldrrd = A11; //dole lavo cerveny
+
+//nastavenie LCD
+LiquidCrystal_I2C lcd(0x27, 20, 4); // adresa lcd 0x27
+
+void setup() {
+
+  Serial.begin(9600);
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("start");
+
+  //--------------------------------------------------------------------------------------------------------
+  pinMode(5, INPUT);    //zmena modu
+  pinMode(A2, INPUT);   //potenciometer pre ovladanie pohybu  pravo a lavo (horizontalne servo)
+  pinMode(A3, INPUT);   //potenciometer pre ovladanie pohybu  hore a dole (vertikalne servo)
+  
+//piny na ktore su pripojene serva
+  horizontal.attach(7); 
+  vertical.attach(2);
+}
+
+void loop() {
+
+buttonState = digitalRead(5);
+  if (buttonState != prevButtonState) {
+    if (buttonState == HIGH) {
+        if (mode == 1) {
+            mode = 0;
+        
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("manualny mod:");
+        lcd.setCursor(0,13);
+        lcd.print(mode);
+        }
+        
+      else {
+        mode = 1;
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("automaticky mod:");
+        lcd.setCursor(0,16);
+        lcd.print(mode);
+      }
+    }
+  }
+  
+  prevButtonState = buttonState;
+  if (mode == 0) {
+    //mapovanie potenciometrov pre manualny mod
+    horizontal.write(map(analogRead(A2), 0, 1023, 0, 180));
+    vertical.write(map(analogRead(A3), 0, 1023, 0, 180));
+  }
+  
+  else { 
+    automat(); 
+  }
+}
+
+void voltmeter() {
+  
+     if (mode == 0) {
+       lcd.clear();
+       lcd.setCursor(0,1);
+       lcd.print("manualny mod:");
+       lcd.setCursor(13,1);
+       lcd.print(mode);
+  }
+
+    if (mode == 1) {
+      lcd.clear();
+      lcd.setCursor(0,1);
+      lcd.print("automticky mod:");
+      lcd.setCursor(15,1);
+      lcd.print(mode);   
+  }
+   
+  value = analogRead(voltageSensor);
+  vOUT = (value * 5.0) / 1024.0;
+  vIN = vOUT / (R2/(R1+R2));
+  lcd.setCursor(0,0);
+  lcd.print("Bateria:     ");
+  lcd.setCursor(8,0);
+  lcd.print(vIN);
+  }
+  
+
+void automat() {
+ 
+  int lt = analogRead(ldrlt); // top left
+  int rt = analogRead(ldrrt); // top right
+  int ld = analogRead(ldrld); // down left
+  int rd = analogRead(ldrrd); // down rigt
+  
+  int dtime = analogRead(A0)/20; // read potentiometers  
+  int tol = analogRead(A1)/4;
+  
+  int avt = (lt + rt) / 2; // average value top
+  int avd = (ld + rd) / 2; // average value down
+  int avl = (lt + ld) / 2; // average value left
+  int avr = (rt + rd) / 2; // average value right
+
+  int dvert = avt - avd; // check the diffirence of up and down
+  int dhoriz = avl - avr;// check the diffirence og left and rigt
+    
+  if (-1*tol > dvert || dvert > tol) // check if the diffirence is in the tolerance else change vertical angle
+  {
+  if (avt > avd)
+  {
+    servov = ++servov;
+     if (servov > 180) 
+     { 
+      servov = 180;
+     }
+  }
+  else if (avt < avd)
+  {
+    servov= --servov;
+    if (servov < 0)
+  {
+    servov = 0;
+  }
+  }
+  vertical.write(servov);
+  }
+  
+  if (-1*tol > dhoriz || dhoriz > tol) // check if the diffirence is in the tolerance else change horizontal angle
+  {
+  if (avl > avr)
+  {
+    servoh = --servoh;
+    if (servoh < 0)
+    {
+    servoh = 0;
+    }
+  }
+  else if (avl < avr)
+  {
+    servoh = ++servoh;
+     if (servoh > 180)
+     {
+     servoh = 180;
+     }
+  }
+  else if (avl = avr)
+  {
+    // nothing
+  }
+  horizontal.write(servoh);
+  delay(100);
+  }
+}
