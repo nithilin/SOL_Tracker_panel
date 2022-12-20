@@ -1,0 +1,158 @@
+#include <Servo.h> // include Servo library 
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 20, 4); // adresa lcd 0x27
+
+Servo horizontal; // horizontal servo
+int servoh = 90; // stand horizontal servo
+
+Servo vertical; // vertical servo 
+int servov = 90; // stand vertical servo
+
+const int MLED = 49;
+const int BLED = 51;
+
+int tlacitko1 = 10;
+int tlacitko2 = 12;
+
+int stavTlacitka1 = 0;
+int stavTlacitka2 = 0;
+int predosliStavTlacitka1 = 0;
+int predosliStavTlacitka2 = 0;
+int stlacenia = 0;
+
+// LDR pin connections
+// name = analogpin;
+int ldrlt = 8; //LDR top left
+int ldrrt = 9; //LDR top rigt
+int ldrld = 10; //LDR down left
+int ldrrd = 11; //ldr down rigt
+
+void setup()
+{
+  Serial.begin(9600);
+  Serial.println("start programu 1 sekcia setup");
+  
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Start Systemu");
+  delay(500);
+  lcd.clear();
+
+  pinMode(49, OUTPUT);
+  pinMode(51, OUTPUT);
+  pinMode(tlacitko1, INPUT_PULLUP);
+  pinMode(tlacitko2, INPUT_PULLUP);
+  
+  horizontal.attach(2); 
+  vertical.attach(7);
+}
+
+void loop() {
+
+stavTlacitka1 = digitalRead(10);
+stavTlacitka2 = digitalRead(12);
+if (stavTlacitka1 != predosliStavTlacitka1) {
+    stlacenia++;  
+    delay(30);
+    }
+    
+else if (stavTlacitka2 != predosliStavTlacitka2) {
+    stlacenia--;  
+    delay(30);
+    }
+
+if (stlacenia == 1) {
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("menu:1 auto");
+    lcd.setCursor(5,0);
+    lcd.print(stlacenia);
+    digitalWrite(MLED, LOW);
+    digitalWrite(BLED, HIGH);
+    automat();
+}
+ if (stlacenia == 2) {
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("menu:2");
+    lcd.setCursor(5,0);
+    lcd.print(stlacenia);
+    digitalWrite(BLED, LOW);
+    digitalWrite(MLED, HIGH);
+    manual();
+}
+}
+
+void manual() {
+  horizontal.write(map(analogRead(A2), 0, 1023, 0, 180));
+    vertical.write(map(analogRead(A3), 0, 1023, 0, 180));
+}
+
+void automat() { 
+
+  int lt = analogRead(ldrlt); // top left
+  int rt = analogRead(ldrrt); // top right
+  int ld = analogRead(ldrld); // down left
+  int rd = analogRead(ldrrd); // down rigt
+
+  int dtime = analogRead(0)/20; // read potentiometers
+  int tol = analogRead(1)/4;
+
+int avt = (lt + rt) / 2; // average value top
+int avd = (ld + rd) / 2; // average value down
+int avl = (lt + ld) / 2; // average value left
+int avr = (rt + rd) / 2; // average value right
+
+int dvert = avt - avd; // check the diffirence of up and down
+int dhoriz = avl - avr;// check the diffirence og left and rigt
+
+if (-1*tol > dvert || dvert > tol) // check if the diffirence is in the tolerance else change vertical angle
+{
+if (avt > avd)
+{
+servov = ++servov;
+if (servov > 180)
+{
+servov = 180;
+}
+}
+else if (avt < avd)
+{
+servov= --servov;
+if (servov < 0)
+{
+servov = 0;
+}
+}
+vertical.write(servov);
+}
+
+if (-1*tol > dhoriz || dhoriz > tol) // check if the diffirence is in the tolerance else change horizontal angle
+{
+if (avl > avr)
+{
+servoh = --servoh;
+if (servoh < 0)
+{
+servoh = 0;
+}
+}
+else if (avl < avr)
+{
+servoh = ++servoh;
+if (servoh > 180)
+{
+servoh = 180;
+}
+}
+else if (avl == avr)
+{
+// nothing
+}
+horizontal.write(servoh);
+}
+delay(dtime);
+}
